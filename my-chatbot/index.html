@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Website with Secure AI Chatbot</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 40px; line-height: 1.6; }
+    #chat-toggle { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background: #10a37f; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 1000; font-size: 24px; }
+    #chat-container { display: none; position: fixed; bottom: 90px; right: 20px; width: 350px; height: 500px; background: white; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.2); flex-direction: column; z-index: 1001; }
+    #chat-header { background: #10a37f; color: white; padding: 16px; border-radius: 12px 12px 0 0; display: flex; justify-content: space-between; align-items: center; }
+    #chat-messages { flex: 1; padding: 16px; overflow-y: auto; background: #f9f9f9; }
+    .message { margin-bottom: 12px; padding: 8px 12px; border-radius: 8px; max-width: 80%; }
+    .user { background: #10a37f; color: white; margin-left: auto; text-align: right; }
+    .bot { background: white; color: #333; border: 1px solid #ddd; }
+    #chat-input-container { padding: 16px; border-top: 1px solid #eee; display: flex; gap: 8px; }
+    #chat-input { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 20px; outline: none; }
+    #send-btn { background: #10a37f; color: white; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; }
+    #chat-input-container.loading #send-btn { background: #ccc; cursor: not-allowed; }
+    .streaming { opacity: 0.7; }
+    @media (max-width: 768px) { #chat-container { width: 100%; right: 0; bottom: 0; height: calc(100vh - 70px); border-radius: 12px 12px 0 0; } }
+  </style>
+</head>
+<body>
+  <h1>Welcome to My Simple Website</h1>
+  <p>This is your static site. Click the green bubble for secure AI chat—no keys exposed!</p>
+
+  <!-- Chat Toggle Button -->
+  <div id="chat-toggle" onclick="toggleChat()">💬</div>
+
+  <!-- Chat Container -->
+  <div id="chat-container">
+    <div id="chat-header">
+      <span>AI Assistant</span>
+      <span onclick="toggleChat()" style="cursor: pointer; font-size: 18px;">×</span>
+    </div>
+    <div id="chat-messages">
+      <div class="message bot">
+        <p>Hi! I'm your secure AI helper. Ask me anything.</p>
+      </div>
+    </div>
+    <div id="chat-input-container">
+      <input type="text" id="chat-input" placeholder="Type your message..." onkeypress="if(event.key==='Enter') sendMessage()">
+      <button id="send-btn" onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+
+  <script>
+    let isLoading = false;
+
+    function toggleChat() {
+      const container = document.getElementById('chat-container');
+      const toggle = document.getElementById('chat-toggle');
+      container.style.display = container.style.display === 'flex' ? 'none' : 'flex';
+      toggle.textContent = container.style.display === 'flex' ? '✕' : '💬';
+    }
+
+    async function sendMessage() {
+      if (isLoading) return;
+      const input = document.getElementById('chat-input');
+      const message = input.value.trim();
+      if (!message) return;
+
+      // Add user message
+      addMessage('user', message);
+      input.value = '';
+
+      isLoading = true;
+      const container = document.getElementById('chat-input-container');
+      container.classList.add('loading');
+
+      try {
+        // Call YOUR PROXY (no key sent here – super secure!)
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message }),
+        });
+
+        if (!response.ok) throw new Error('Proxy error');
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let botMessage = document.createElement('div');
+        botMessage.className = 'message bot streaming';
+        document.getElementById('chat-messages').appendChild(botMessage);
+        let botContent = document.createElement('p');
+        botMessage.appendChild(botContent);
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              if (data === '[DONE]') continue;
+              try {
+                const parsed = JSON.parse(data);
+                const content = parsed.choices[0]?.delta?.content;
+                if (content) botContent.textContent += content;
+              } catch (e) {}
+            }
+          }
+          botMessage.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        botMessage.classList.remove('streaming');
+      } catch (error) {
+        addMessage('bot', 'Oops! Chat service down. Try again soon.');
+        console.error(error);
+      } finally {
+        isLoading = false;
+        container.classList.remove('loading');
+      }
+    }
+
+    function addMessage(role, content) {
+      const messages = document.getElementById('chat-messages');
+      const div = document.createElement('div');
+      div.className = `message ${role}`;
+      div.innerHTML = `<p>${content}</p>`;
+      messages.appendChild(div);
+      div.scrollIntoView({ behavior: 'smooth' });
+    }
+  </script>
+</body>
+</html>
+
